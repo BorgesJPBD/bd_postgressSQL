@@ -66,27 +66,29 @@ BEGIN
     END IF;
 
     
-    INSERT INTO pedidos (status) VALUES ('processando')
-      RETURNING pedido_id INTO v_pedido_id;
+    INSERT INTO pedidos (status) VALUES ('processando') --Essa linha cria um novo pedido com status 'processando'
+      RETURNING pedido_id INTO v_pedido_id; --e guarda o ID gerado (campo pedido_id) dentro da variável v_pedido_id pra ser usado nas próximas etapas da venda.
+
 
     
-    INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario)
+    INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario) --Essa linha grava o produto dentro do pedido, dizendo: “No pedido X, foi vendido o produto Y, na quantidade Z, com preço tal”.
     VALUES (v_pedido_id, p_produto_id, p_quantidade, v_preco);
 
     
     UPDATE produtos
-       SET quantidade_em_estoque = quantidade_em_estoque - p_quantidade
+       SET quantidade_em_estoque = quantidade_em_estoque - p_quantidade ---- Atualiza o estoque: subtrai a quantidade vendida do produto correspondente.
      WHERE produto_id = p_produto_id;
 
     
-    UPDATE pedidos SET status = 'concluido' WHERE pedido_id = v_pedido_id;
+    UPDATE pedidos SET status = 'concluido' WHERE pedido_id = v_pedido_id; ---- Atualiza o status apenas do pedido recém-criado (identificado por v_pedido_id).
 
-    RETURN v_pedido_id;
+    RETURN v_pedido_id; 
 
 EXCEPTION
     WHEN OTHERS THEN
         IF v_pedido_id IS NOT NULL THEN
             UPDATE pedidos SET status = 'cancelado' WHERE pedido_id = v_pedido_id;
+ 
         END IF;
         RAISE;
 END;
@@ -101,7 +103,8 @@ SELECT
   COALESCE(SUM(i.quantidade * i.preco_unitario),0) AS total
 FROM pedidos p
 LEFT JOIN itens_pedido i ON i.pedido_id = p.pedido_id
-GROUP BY p.pedido_id, p.data_pedido, p.status;
+GROUP BY p.pedido_id, p.data_pedido, p.status; --Soma todos os itens de cada pedido e devolve um resumo por pedido (um por linha).
+
 
 
 BEGIN;
@@ -114,7 +117,8 @@ SELECT processar_venda(4, 10);
 ROLLBACK;
 
 
-SELECT * FROM produtos ORDER BY produto_id;
-SELECT * FROM pedidos ORDER BY pedido_id;
-SELECT * FROM itens_pedido ORDER BY item_id;
-SELECT * FROM v_pedido_resumo ORDER BY pedido_id DESC LIMIT 10;
+SELECT * FROM produtos ORDER BY produto_id; --Mostra o estoque atual de cada produto (depois da primeira venda)
+SELECT * FROM pedidos ORDER BY pedido_id; -- Mostra todos os pedidos existentes (o da 1ª transação aparece, o da 2ª não).
+SELECT * FROM itens_pedido ORDER BY item_id; --Mostra todos os pedidos existentes (o da 1ª transação aparece, o da 2ª não).
+SELECT * FROM v_pedido_resumo ORDER BY pedido_id DESC LIMIT 10; --Mostra um resumo dos pedidos (id, data, status, total) — limitado aos 10 últimos.
+ 
